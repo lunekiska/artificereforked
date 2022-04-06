@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "id": "artificereforked",
+  "version": "${version}",
+
+  "name": "Artifice Reforked",
+  "description": "Library for programmatically generated resource files.",
+  "authors": [ "swordglowsblue","Fudge", "Lunekiska"],
+
+  "contact": {
+    "homepage": "https://github.com/lunekiska/artificereforked",
+    "sources": "https://github.com/lunekiska/artificereforked",
+    "issues": "https://github.com/lunekiska/artificereforked/issues"
+  },
+
+  "license": "MIT",
+  "icon": "assets/artificereforked/icon.png",
+
+  "mixins": [ "artificereforked.mixins.json" ],
+  "depends": {
+    "minecraft": ">=1.18.1",
+    "fabricloader": ">=0.13.3"
+  },
+  "custom": {
+    "modmenu:api": true
+  }
+}

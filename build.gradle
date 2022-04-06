@@ -1,0 +1,271 @@
+plugins {
+	id 'fabric-loom'
+	id 'java-library'
+	id 'maven-publish'
+	id 'maven'
+	id 'signing'
+	id "com.jfrog.bintray"
+}
+
+def total_version = "$mod_version+$minecraft_version"
+def githubUrl = "https://github.com/$github_repo"
+
+group = project.maven_group
+version = "${project.mod_version}+${getMCVersionString()}"
+archivesBaseName = project.archives_base_name
+
+// This field defines the Java version your mod target.
+def targetJavaVersion = 17
+
+boolean isMCVersionNonRelease() {
+	return project.minecraft_version.matches('^\\d\\dw\\d\\d[a-z]$')
+			|| project.minecraft_version.matches('\\d+\\.\\d+-(pre|rc)(\\d+)')
+}
+
+String getMCVersionString() {
+	if (isMCVersionNonRelease()) {
+		return project.minecraft_version
+	}
+	def version = project.minecraft_version.split('\\.')
+	return version[0] + '.' + version[1]
+}
+
+repositories {
+}
+
+dependencies {
+	
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+	mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2" 
+	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	
+	testImplementation 'org.junit.jupiter:junit-jupiter-api:5.7.2'
+    testImplementation "org.junit.jupiter:junit-jupiter-params:5.4.2"
+    testRuntime "org.junit.jupiter:junit-jupiter-engine:5.4.2"
+
+	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+}
+
+test { useJUnitPlatform() }
+
+java {
+	sourceCompatibility = JavaVersion.toVersion(targetJavaVersion)
+	targetCompatibility = JavaVersion.toVersion(targetJavaVersion)
+
+	withSourcesJar()
+}
+
+tasks.withType(JavaCompile).configureEach {
+	it.options.encoding = 'UTF-8'
+	it.options.deprecation(true)
+
+	it.options.release.set(targetJavaVersion)
+}
+
+processResources {
+    inputs.property "version", project.version
+
+    from(sourceSets.main.resources.srcDirs) {
+        include "fabric.mod.json"
+        expand "version": project.version
+    }
+}
+
+tasks.withType(JavaCompile) { options.encoding = "UTF-8" }
+task sourcesJar(type: Jar, dependsOn: classes) {
+    classifier = "sources"
+    from sourceSets.main.allSource
+}
+
+jar { from('LICENSE') }
+
+def pomConfig = {
+    licenses {
+        license {
+            name project.license
+        }
+    }
+    developers {
+        developer {
+            id "lunekiska"
+            name "kisca"
+            email "kiscaatwork@gmail.com"
+        }
+    }
+
+    scm {
+        url githubUrl
+    }
+}
+
+
+// ensure that the encoding is set to UTF-8, no matter what the system default is
+// this fixes some edge cases with special characters not displaying correctly
+// see http://yodaconditions.net/blog/fix-for-java-file-encoding-problems-with-gradle.html
+tasks.withType(JavaCompile) {
+    options.encoding = "UTF-8"
+}
+
+
+jar {
+    from "LICENSE"
+}
+
+String tryProp(String key) {
+    return project.hasProperty(key) ? project.property(key) : ""
+}
+
+// configure the maven publication
+
+afterEvaluate {
+    artifacts {
+        archives remapJar
+        archives remapSourcesJar.output
+    }
+    signing {
+        sign configurations.archives
+    }
+
+
+    publishing {
+        publications {
+            mavenJava(MavenPublication) {
+                customizePom(pom)
+                groupId maven_group
+                artifactId archives_base_name
+                version total_version
+
+                artifact(remapJar)
+
+                artifact(sourcesJar) {
+                    classifier = "sources"
+                    builtBy remapSourcesJar
+                }
+
+                pom.withXml {
+                    def pomFile = file("${project.buildDir}/generated-pom.xml")
+                    writeTo(pomFile)
+                    def pomAscFile = signing.sign(pomFile).signatureFiles[0]
+                    artifact(pomAscFile) {
+                        classifier = null
+                        extension = 'pom.asc'
+                    }
+                }
+//                println(project.tasks.signArchives.signatureFiles.files())
+// create the signed artifacts
+                project.tasks.signArchives.signatureFiles.filter { f ->
+                    String name = f.getName()
+                    !name.endsWith("-dev.jar.asc")
+                }.each {
+                    artifact(it) {
+                        def matcher = it.file =~ /-(sources|javadoc)\.jar\.asc$/
+                        if (matcher.find()) {
+                            classifier = matcher.group(1)
+                        } else {
+                            classifier = null
+                        }
+                        extension = 'jar.asc'
+                    }
+                }
+            }
+        }
+        repositories {
+            maven {
+                url "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
+                credentials {
+                    username tryProp("nexusUsername")
+                    password tryProp("nexusPassword")
+                }
+            }
+        }
+    }
+}
+
+
+def customizePom(pom) {
+    pom.withXml {
+        def root = asNode()
+
+        // eliminate test-scoped dependencies (no need in maven central POMs)
+        root.dependencies.removeAll { dep ->
+            dep.scope == "test"
+        }
+
+        // add all items necessary for maven central publication
+        root.children().last() + {
+            def githubUrl = "https://github.com/$github_repo"
+
+            resolveStrategy = Closure.DELEGATE_FIRST
+
+            description mod_description
+            name mod_id
+            url githubUrl
+            organization {
+                name maven_group
+                url githubUrl
+            }
+            issueManagement {
+                system 'GitHub'
+                url "${githubUrl}/issues"
+            }
+            licenses {
+                license {
+                    name license
+                    url 'https://opensource.org/licenses/MIT'
+                    distribution 'repo'
+                }
+            }
+            scm {
+                url "https://github.com/${github_repo}"
+                connection "scm:git:git://github.com/${github_repo}.git"
+                developerConnection "scm:git:ssh://git@github.com:${github_repo}.git"
+            }
+            developers {
+			
+				developer {
+                    name 'Lunekiska'
+                }
+				
+                developer {
+                    name 'Fudge'
+                }
+
+                developer {
+                    name 'OliviaTheVampire'
+                }
+            }
+        }
+    }
+}
+
+model {
+    tasks.generatePomFileForMavenJavaPublication {
+        destination = file("$buildDir/generated-pom.xml")
+    }
+
+    tasks.publishMavenJavaPublicationToMavenLocal {
+        dependsOn project.tasks.signArchives
+    }
+    tasks.publishMavenJavaPublicationToMavenRepository {
+        dependsOn project.tasks.signArchives
+    }
+}
+
+Properties properties = new Properties()
+properties.put("total_version", total_version)
+
+
+task updateTemplate(type: Copy) {
+    group = "template"
+    description = "Switches out variables like \$total_version in .template.md files, and copies the results into .md files."
+    from(rootDir)
+    include("**/*.template.md")
+    filesMatching("**/*.template.md") {
+        def extensionLength = ".template.md".length()
+
+        name = sourceName.substring(0, sourceName.length() - extensionLength) + ".md"
+        expand(properties)
+    }
+    destinationDir = rootDir
+}
+publish.dependsOn updateTemplate
