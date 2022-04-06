@@ -7,7 +7,7 @@ Installation:
 
 ```gradle
 dependencies {
-  modImplementation "io.github.luneksiks:artificereforked:1.0.0+1.18"
-  include "io.github.luneksiks:artificereforked:1.0.0+1.18"
+  modImplementation "io.github.luneksika:artificereforked:1.0.0+1.18"
+  include "io.github.luneksika:artificereforked:1.0.0+1.18"
 }
 ```
