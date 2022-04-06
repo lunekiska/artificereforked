@@ -2,7 +2,6 @@ plugins {
 	id 'fabric-loom'
 	id 'java-library'
 	id 'maven-publish'
-	id 'maven'
 	id 'signing'
 	id "com.jfrog.bintray"
 }
@@ -41,7 +40,7 @@ dependencies {
 	
 	testImplementation 'org.junit.jupiter:junit-jupiter-api:5.7.2'
     testImplementation "org.junit.jupiter:junit-jupiter-params:5.4.2"
-    testRuntime "org.junit.jupiter:junit-jupiter-engine:5.4.2"
+    testImplementation "org.junit.jupiter:junit-jupiter-engine:5.4.2"
 
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 }
@@ -51,8 +50,6 @@ test { useJUnitPlatform() }
 java {
 	sourceCompatibility = JavaVersion.toVersion(targetJavaVersion)
 	targetCompatibility = JavaVersion.toVersion(targetJavaVersion)
-
-	withSourcesJar()
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -268,4 +265,13 @@ task updateTemplate(type: Copy) {
     }
     destinationDir = rootDir
 }
+
+task replaceVersionInREADME{
+    // Gradle
+    ant.replaceregexp(match:'io\\.github\\.lunekiska\\:artificereforked\\:([0-9\\.]+)', replace:"io.github.lunekiska:artificereforked:${version}", flags:'g', byline:true) {
+        fileset(dir: '.', includes: 'README.md')
+    }
+}
+
 publish.dependsOn updateTemplate
+publish.dependsOn replaceVersionInREADME
